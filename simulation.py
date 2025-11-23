@@ -6,7 +6,7 @@ import random
 import math
 
 # --- IMPORT YOUR CONFIGS ---
-from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS
+from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS, ORDER_TYPE_PROBS
 
 # --------------------------------------------------
 # Event types
@@ -22,8 +22,10 @@ class Customer:
     """Encapsulates the state of a single customer."""
     def __init__(self, cid, channel_name):
         self.id = cid
-        self.channel_name = channel_name # Remembers original channel
+        self.channel_name = channel_name # drive_thru | mobile_order | cashier
         self.stage = "ordering"          # ordering | pickup
+        self.item_type = OrderTypeGenerator(channel_name).sample() # food | drink | espresso
+        # TODO: customers should be able to order more than one item
 
 # --------------------------------------------------
 # Arrival Generator (Encapsulates arrival logic)
@@ -50,6 +52,21 @@ class ArrivalGenerator:
             # Accept with probability P(t) = λ(t) / λ_max
             if random.random() < self.rate_func(t) / self.rate_max:
                 return t
+
+# --------------------------------------------------
+# Order Type Generator
+# --------------------------------------------------
+class OrderTypeGenerator:
+    def __init__(self, channel_name):
+        self.channel = channel_name
+        self.probs = ORDER_TYPE_PROBS[channel_name]
+
+        self.items = list(self.probs.keys())
+        self.weights = list(self.probs.values())
+
+    def sample(self):
+        """Return one sampled order type."""
+        return random.choices(self.items, weights=self.weights, k=1)[0]
 
 # --------------------------------------------------
 # Service Station (Encapsulates queue state)

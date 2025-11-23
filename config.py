@@ -73,3 +73,24 @@ SIM_PARAMS = {
     "SIM_TIME_END": 16.0,  # 16-hour operating day
     "MAX_DEPARTURES": 2500, # Set higher than total arrivals
 }
+
+# -----------------------------------------
+# Order Type Distributions by Channel
+# -----------------------------------------
+ORDER_TYPE_PROBS = {
+    "drive_thru": {
+        "food":     0.35,
+        "drink":    0.25,
+        "espresso": 0.40
+    },
+    "mobile_order": {
+        "food":     0.45,
+        "drink":    0.20,
+        "espresso": 0.35
+    },
+    "cashier": {
+        "food":     0.55,
+        "drink":    0.20,
+        "espresso": 0.25
+    }
+}
