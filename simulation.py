@@ -6,7 +6,12 @@ import random
 import math
 
 # --- IMPORT YOUR CONFIGS ---
-from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS
+from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS, ORDER_SIZE_PROBS, ITEM_TYPE_PROBS
+
+from customers.customer import Customer
+from arrivals.arrival_generator import ArrivalGenerator
+from stations.channel import Channel
+from stations.kitchen_station import KitchenStation
 
 # --------------------------------------------------
 # Event types
@@ -14,78 +19,6 @@ from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS
 ARRIVAL = "arrival"
 CHANNEL_DEPARTURE = "channel_departure"
 KITCHEN_DEPARTURE = "kitchen_departure"
-
-# --------------------------------------------------
-# Customer Object (Encapsulates customer state)
-# --------------------------------------------------
-class Customer:
-    """Encapsulates the state of a single customer."""
-    def __init__(self, cid, channel_name):
-        self.id = cid
-        self.channel_name = channel_name # Remembers original channel
-        self.stage = "ordering"          # ordering | pickup
-
-# --------------------------------------------------
-# Arrival Generator (Encapsulates arrival logic)
-# --------------------------------------------------
-class ArrivalGenerator:
-    """
-    (Abstraction)
-    Encapsulates the logic for a Non-Homogeneous Poisson Process
-    using the thinning method.
-    """
-    def __init__(self, rate_func, rate_max):
-        self.rate_func = rate_func
-        self.rate_max = rate_max
-
-    def sample_next(self, t_now, sim_time_end):
-        """Returns the next arrival time > t_now, or None."""
-        t = t_now
-        while True:
-            # Propose candidate from the "envelope" process
-            t += random.expovariate(self.rate_max)
-            if t > sim_time_end:
-                return None
-            
-            # Accept with probability P(t) = λ(t) / λ_max
-            if random.random() < self.rate_func(t) / self.rate_max:
-                return t
-
-# --------------------------------------------------
-# Service Station (Encapsulates queue state)
-# --------------------------------------------------
-class ServiceStation:
-    """
-    (Encapsulation & Inheritance - Base Class)
-    Holds the state for a single-server queue.
-    """
-    def __init__(self, name, mu):
-        self.name = name
-        self.mu = mu               # Service rate
-        self.server_busy = False
-        self.queue = []            # Holds Customer objects
-        self.num_waited = 0
-        self.num_departures = 0
-
-class Channel(ServiceStation):
-    """
-    (Inheritance - Child Class)
-    A ServiceStation that also has an ArrivalGenerator
-    and tracks final system departures.
-    """
-    def __init__(self, name, mu, arrival_generator):
-        super().__init__(name, mu)
-        self.arrival_gen = arrival_generator
-        self.num_system_departures = 0 # Final exits
-
-class KitchenStation(ServiceStation):
-    """
-    (Inheritance - Child Class)
-    A simple ServiceStation for the kitchen.
-    """
-    def __init__(self, name, mu):
-        super().__init__(name, mu)
-        # Inherits all state from ServiceStation
 
 # --------------------------------------------------
 # Simulation Engine (Encapsulates global state & logic)

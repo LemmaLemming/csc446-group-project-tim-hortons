@@ -73,3 +73,50 @@ SIM_PARAMS = {
     "SIM_TIME_END": 16.0,  # 16-hour operating day
     "MAX_DEPARTURES": 2500, # Set higher than total arrivals
 }
+
+# --------------------------------------------
+# Order Size Distributions (per customer)
+# --------------------------------------------
+# Probabilities for the NUMBER OF ITEMS in an order
+ORDER_SIZE_PROBS = {
+    "drive_thru": {
+        1: 0.55,
+        2: 0.30,
+        3: 0.12,
+        4: 0.03,
+    },
+    "mobile_order": {
+        1: 0.40,
+        2: 0.35,
+        3: 0.20,
+        4: 0.05,
+    },
+    "cashier": {
+        1: 0.45,
+        2: 0.30,
+        3: 0.20,
+        4: 0.05,
+    }
+}
+
+# -----------------------------------------
+# Order Type Distributions by Channel
+# -----------------------------------------
+# Probability of each *item type* each time we generate an item
+ITEM_TYPE_PROBS = {
+    "drive_thru": {
+        "food":    0.45,
+        "drink":   0.40,
+        "espresso":0.15,
+    },
+    "mobile_order": {
+        "food":     0.25,
+        "drink":    0.50,
+        "espresso": 0.25,
+    },
+    "cashier": {
+        "food":     0.55,
+        "drink":    0.30,
+        "espresso": 0.15,
+    }
+}
