@@ -6,7 +6,7 @@ import random
 import math
 
 # --- IMPORT YOUR CONFIGS ---
-from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS, ORDER_TYPE_PROBS
+from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS, ORDER_SIZE_PROBS, ITEM_TYPE_PROBS
 
 # --------------------------------------------------
 # Event types
@@ -24,8 +24,18 @@ class Customer:
         self.id = cid
         self.channel_name = channel_name # drive_thru | mobile_order | cashier
         self.stage = "ordering"          # ordering | pickup
-        self.item_type = OrderTypeGenerator(channel_name).sample() # food | drink | espresso
-        # TODO: customers should be able to order more than one item
+        self.order_items = OrderGenerator(channel_name).generate() # list of food | drink | espresso
+
+class OrderItem:
+    def __init__(self, item_type):
+        self.type = item_type
+        # in the future we can add:
+        # self.prep_time
+        # self.station
+        # or whatever
+    
+    def __repr__(self):
+        return f"OrderItem(type={self.type})"
 
 # --------------------------------------------------
 # Arrival Generator (Encapsulates arrival logic)
@@ -53,20 +63,33 @@ class ArrivalGenerator:
             if random.random() < self.rate_func(t) / self.rate_max:
                 return t
 
-# --------------------------------------------------
-# Order Type Generator
-# --------------------------------------------------
-class OrderTypeGenerator:
+class OrderGenerator:
     def __init__(self, channel_name):
         self.channel = channel_name
-        self.probs = ORDER_TYPE_PROBS[channel_name]
 
-        self.items = list(self.probs.keys())
-        self.weights = list(self.probs.values())
+        # Precompute lists for sampling efficiency
+        size_probs = ORDER_SIZE_PROBS[channel_name]
+        item_probs = ITEM_TYPE_PROBS[channel_name]
 
-    def sample(self):
-        """Return one sampled order type."""
-        return random.choices(self.items, weights=self.weights, k=1)[0]
+        self.sizes   = list(size_probs.keys())
+        self.size_w  = list(size_probs.values())
+
+        self.items   = list(item_probs.keys())
+        self.item_w  = list(item_probs.values())
+
+    def generate(self):
+        """Return a list of OrderItem objects."""
+
+        # 1. Sample how many items this customer orders
+        n_items = random.choices(self.sizes, weights=self.size_w)[0]
+
+        # 2. Sample each item's category
+        results = []
+        for _ in range(n_items):
+            item_type = random.choices(self.items, weights=self.item_w)[0]
+            results.append(OrderItem(item_type))
+
+        return results
 
 # --------------------------------------------------
 # Service Station (Encapsulates queue state)
