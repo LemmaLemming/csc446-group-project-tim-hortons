@@ -88,7 +88,6 @@ class Simulation:
 
         # Create new customer
         cust = Customer(self.next_customer_id, channel_name)
-        print(cust.order_items)
         self.next_customer_id += 1
 
         # Join queue or start service
@@ -194,8 +193,7 @@ class Simulation:
         # Process events
         while (self.event_list
                and self.clock < self.sim_time_end
-            #    and self.total_finished_customers() < self.max_departures):
-               and self.total_finished_customers() < 10):
+               and self.total_finished_customers() < self.max_departures):
 
             event_time, _, event_type, data = heapq.heappop(self.event_list)
             
