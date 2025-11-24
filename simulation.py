@@ -8,124 +8,17 @@ import math
 # --- IMPORT YOUR CONFIGS ---
 from config import ARRIVAL_CONFIG, SERVICE_RATES, ROUTING_PROBS, SIM_PARAMS, ORDER_SIZE_PROBS, ITEM_TYPE_PROBS
 
+from customers.customer import Customer
+from arrivals.arrival_generator import ArrivalGenerator
+from stations.channel import Channel
+from stations.kitchen_station import KitchenStation
+
 # --------------------------------------------------
 # Event types
 # --------------------------------------------------
 ARRIVAL = "arrival"
 CHANNEL_DEPARTURE = "channel_departure"
 KITCHEN_DEPARTURE = "kitchen_departure"
-
-# --------------------------------------------------
-# Customer Object (Encapsulates customer state)
-# --------------------------------------------------
-class Customer:
-    """Encapsulates the state of a single customer."""
-    def __init__(self, cid, channel_name):
-        self.id = cid
-        self.channel_name = channel_name # drive_thru | mobile_order | cashier
-        self.stage = "ordering"          # ordering | pickup
-        self.order_items = OrderGenerator(channel_name).generate() # list of food | drink | espresso
-
-class OrderItem:
-    def __init__(self, item_type):
-        self.type = item_type
-        # in the future we can add:
-        # self.prep_time
-        # self.station
-        # or whatever
-    
-    def __repr__(self):
-        return f"OrderItem(type={self.type})"
-
-# --------------------------------------------------
-# Arrival Generator (Encapsulates arrival logic)
-# --------------------------------------------------
-class ArrivalGenerator:
-    """
-    (Abstraction)
-    Encapsulates the logic for a Non-Homogeneous Poisson Process
-    using the thinning method.
-    """
-    def __init__(self, rate_func, rate_max):
-        self.rate_func = rate_func
-        self.rate_max = rate_max
-
-    def sample_next(self, t_now, sim_time_end):
-        """Returns the next arrival time > t_now, or None."""
-        t = t_now
-        while True:
-            # Propose candidate from the "envelope" process
-            t += random.expovariate(self.rate_max)
-            if t > sim_time_end:
-                return None
-            
-            # Accept with probability P(t) = λ(t) / λ_max
-            if random.random() < self.rate_func(t) / self.rate_max:
-                return t
-
-class OrderGenerator:
-    def __init__(self, channel_name):
-        self.channel = channel_name
-
-        # Precompute lists for sampling efficiency
-        size_probs = ORDER_SIZE_PROBS[channel_name]
-        item_probs = ITEM_TYPE_PROBS[channel_name]
-
-        self.sizes   = list(size_probs.keys())
-        self.size_w  = list(size_probs.values())
-
-        self.items   = list(item_probs.keys())
-        self.item_w  = list(item_probs.values())
-
-    def generate(self):
-        """Return a list of OrderItem objects."""
-
-        # 1. Sample how many items this customer orders
-        n_items = random.choices(self.sizes, weights=self.size_w)[0]
-
-        # 2. Sample each item's category
-        results = []
-        for _ in range(n_items):
-            item_type = random.choices(self.items, weights=self.item_w)[0]
-            results.append(OrderItem(item_type))
-
-        return results
-
-# --------------------------------------------------
-# Service Station (Encapsulates queue state)
-# --------------------------------------------------
-class ServiceStation:
-    """
-    (Encapsulation & Inheritance - Base Class)
-    Holds the state for a single-server queue.
-    """
-    def __init__(self, name, mu):
-        self.name = name
-        self.mu = mu               # Service rate
-        self.server_busy = False
-        self.queue = []            # Holds Customer objects
-        self.num_waited = 0
-        self.num_departures = 0
-
-class Channel(ServiceStation):
-    """
-    (Inheritance - Child Class)
-    A ServiceStation that also has an ArrivalGenerator
-    and tracks final system departures.
-    """
-    def __init__(self, name, mu, arrival_generator):
-        super().__init__(name, mu)
-        self.arrival_gen = arrival_generator
-        self.num_system_departures = 0 # Final exits
-
-class KitchenStation(ServiceStation):
-    """
-    (Inheritance - Child Class)
-    A simple ServiceStation for the kitchen.
-    """
-    def __init__(self, name, mu):
-        super().__init__(name, mu)
-        # Inherits all state from ServiceStation
 
 # --------------------------------------------------
 # Simulation Engine (Encapsulates global state & logic)
@@ -195,6 +88,7 @@ class Simulation:
 
         # Create new customer
         cust = Customer(self.next_customer_id, channel_name)
+        print(cust.order_items)
         self.next_customer_id += 1
 
         # Join queue or start service
@@ -300,7 +194,8 @@ class Simulation:
         # Process events
         while (self.event_list
                and self.clock < self.sim_time_end
-               and self.total_finished_customers() < self.max_departures):
+            #    and self.total_finished_customers() < self.max_departures):
+               and self.total_finished_customers() < 10):
 
             event_time, _, event_type, data = heapq.heappop(self.event_list)
             
