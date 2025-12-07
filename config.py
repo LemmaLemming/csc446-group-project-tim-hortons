@@ -34,7 +34,7 @@ DINE_IN_PROB = 0.4  # vs Take-out
 NUM_CASHIERS = 2    # Number of servers. "number of cashiers will double the queuing..."
 CASHIER_MAX_WAIT_TIME_MINUTES = 10.0 # Time before balking in line
 # Service Time (LogNormal) - Minutes
-CASHIER_MEAN_TIME = 1.0
+CASHIER_MEAN_TIME = 1.0 
 CASHIER_STD_DEV = 0.2
 # Multiplier per additional item in the order (applied to mean and std)
 CASHIER_ITEM_MULTIPLIER = 0.2 # e.g. add 20% time per extra item

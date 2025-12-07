@@ -25,7 +25,7 @@ class Order:
     is_drive_thru: bool = False
     is_priority: bool = False
     order_time: float = 0.0
-
+    
     # For Mobile
     pickup_slot_start: Optional[float] = None # Minutes from sim start
 
@@ -35,16 +35,16 @@ class Customer:
     arrival_time: float
     channel: str # "cashier", "mobile", "drive_thru"
     order: Order
-
+    
     # State tracking
     start_wait_time: float = 0.0
     end_wait_time: float = 0.0 # When they finished ordering/queued for pickup
     finish_time: float = 0.0   # When they got their food
-
+    
     balked: bool = False
     reneged: bool = False
     sla_violated: bool = False # For mobile
-
+    
     def wait_duration(self):
         return self.end_wait_time - self.start_wait_time
 
