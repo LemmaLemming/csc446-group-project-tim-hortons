@@ -1,75 +1,74 @@
 # config.py
-# --- All tunable parameters and rate logic live here ---
+# Simulation Configuration Parameters
 
-import math
+# --- Simulation Time Settings ---
+# The simulation clock is in MINUTES.
+# However, arrival patterns are defined in HOURS (peaks at 8am, 12pm).
+SIM_DURATION_HOURS = 16  # Run for 16 hours (e.g. 6am to 10pm)
+SIM_START_HOUR = 6
+RANDOM_SEED = 42
 
-# --------------------------------------------------
-# Arrival Rate Functions & Helpers
-# --------------------------------------------------
-DAY = 24.0
+# --- Arrival Process (NHPP) ---
+# Lambda(t) = Base + Ab * exp(...) + Al * exp(...)
+# Rates are in Arrivals PER HOUR
+ARRIVAL_BASE_RATE = 2.0       # lambda_0
+ARRIVAL_PEAK_B_AMP = 15.0     # A_b (Breakfast peak amplitude)
+ARRIVAL_PEAK_L_AMP = 20.0     # A_l (Lunch peak amplitude)
+ARRIVAL_PEAK_WIDTH = 1.0      # sigma
+ARRIVAL_PEAK_B_TIME = 8.0     # Breakfast peak time (hour of day)
+ARRIVAL_PEAK_L_TIME = 12.0    # Lunch peak time (hour of day)
 
-def bell(t, center, width):
-    """Smooth bump (approx Gaussian), max = 1 at 'center'."""
-    x = (t - center) / width
-    return math.exp(-x * x)
+# --- Routing Probabilities ---
+PROB_CASHIER = 0.5
+PROB_MOBILE = 0.2
+PROB_DRIVE_THRU = 0.3
 
-def wrap_day(t):
-    return t % DAY
+# --- Order Logic ---
+MAX_ITEMS_PER_ORDER = 5
+# Probability of order size drops off exponentially.
+# We will normalize weights for 1..5 items.
+# e.g. weights = [1, 0.5, 0.25, 0.125, 0.0625]
 
-# --- High-volume rates to total ~2200 customers over 16 hours ---
-def rate_drive_thru(t):
-    t = wrap_day(t)
-    base = 11.3
-    breakfast_peak = 143.8 * bell(t, center=8.0,  width=1.5)
-    lunch_peak     = 129.4 * bell(t, center=13.0, width=1.5)
-    return base + breakfast_peak + lunch_peak
+# --- Cashier / Dine-In Settings ---
+DINE_IN_PROB = 0.4  # vs Take-out
+NUM_CASHIERS = 2    # Number of servers. "number of cashiers will double the queuing..."
+CASHIER_MAX_WAIT_TIME_MINUTES = 10.0 # Time before balking in line
+# Service Time (LogNormal) - Minutes
+CASHIER_MEAN_TIME = 1.0
+CASHIER_STD_DEV = 0.2
+# Multiplier per additional item in the order (applied to mean and std)
+CASHIER_ITEM_MULTIPLIER = 0.2 # e.g. add 20% time per extra item
 
-def rate_mobile_order(t):
-    t = wrap_day(t)
-    base = 8.5
-    breakfast_peak = 115.0 * bell(t, center=8.0,  width=1.5)
-    lunch_peak     = 100.7 * bell(t, center=13.0, width=1.5)
-    return base + breakfast_peak + lunch_peak
+# --- Mobile Order Settings ---
+MOBILE_ORDER_SLOT_WINDOW_MINUTES = 15
+MOBILE_ORDER_SLOT_CAPACITY = 5
+MOBILE_ORDER_PREP_BUFFER_MINUTES = 7
+MOBILE_ORDER_MAX_SLOT_ATTEMPTS = 2 # Try chosen slot, then next, then next (Total 3 tries? or "try to book the slot after... twice" -> slot, slot+1, slot+2?)
+# Prompt says: "if customers cannot book the same slot they will try to book the slot after. they will do this twice until they give up."
+# So: Try Preferred. Fail? Try Pref+1. Fail? Try Pref+2. Fail? Give up.
 
-def rate_cashier(t):
-    t = wrap_day(t)
-    base = 7.7
-    end_of_day_peak = 172.6 * bell(t, center=15.0, width=1.5) 
-    return base + end_of_day_peak
+# --- Drive-Thru Settings ---
+DRIVE_THRU_NUM_ORDERING_STATIONS = 2
+DRIVE_THRU_LINE_LIMIT = 12        # Max cars in line before balking
+DRIVE_THRU_PRIORITY_THRESHOLD = 8 # If line > 8, new orders get priority
+# Service Time (LogNormal) - Minutes
+DT_ORDER_MEAN_TIME = 1.0
+DT_ORDER_STD_DEV = 0.2
+DT_ITEM_MULTIPLIER = 0.2
 
-# --------------------------------------------------
-# --- MASTER CONFIGURATION DICTIONARIES ---
-# --------------------------------------------------
+# Pickup Window Service Time (LogNormal) - Minutes
+DT_PICKUP_MEAN_TIME = 0.5
+DT_PICKUP_STD_DEV = 0.1
 
-# 1. Arrival Config: Maps channel name to its (rate_function, rate_max)
-ARRIVAL_CONFIG = {
-    "drive_thru": (rate_drive_thru, 160.0), # Peak λ ≈ 160
-    "mobile_order": (rate_mobile_order, 125.0), # Peak λ ≈ 125
-    "cashier": (rate_cashier, 185.0), # Peak λ ≈ 185
+# --- Kitchen Settings (Black Box) ---
+# Service times for kitchen stations (LogNormal)
+# These are per ITEM.
+KITCHEN_STATIONS = {
+    "hot_foods": {"mean": 2.0, "std": 0.5, "capacity": 2},
+    "drinks":    {"mean": 1.0, "std": 0.2, "capacity": 2},
+    "espresso":  {"mean": 1.5, "std": 0.3, "capacity": 1},
+    "coffee":    {"mean": 0.5, "std": 0.1, "capacity": 2},
 }
 
-# 2. Service Rates (mu): Maps station name to its service rate (customers/hr)
-#    --- UPDATED TO HANDLE HIGH-VOLUME ARRIVALS ---
-SERVICE_RATES = {
-    # Channels (Set μ > Peak λ)
-    "drive_thru": 170.0,  # μ (170) > λ (160)
-    "mobile_order": 130.0,  # μ (130) > λ (125)
-    "cashier": 190.0,  # μ (190) > λ (185)
-    
-    # Kitchen (μ > Peak λ_kitchen)
-    # Peak kitchen load is ~235 arrivals/hr per station
-    "drinks": 240.0,  # μ (240) > λ (235)
-    "food": 240.0,  # μ (240) > λ (235)
-}
-
-# 3. Routing Probabilities: Defines logic for customer flow
-ROUTING_PROBS = {
-    "DRINK_PROB": 0.5  # P(customer order routes to 'drinks')
-}
-
-# 4. Global Sim Params
-SIM_PARAMS = {
-    "RANDOM_SEED": 42,
-    "SIM_TIME_END": 16.0,  # 16-hour operating day
-    "MAX_DEPARTURES": 2500, # Set higher than total arrivals
-}
+# Thresholds for SLA reporting
+SLA_DRIVE_THRU_WAIT_THRESHOLD = 5.0 # Minutes (for 90th percentile check)

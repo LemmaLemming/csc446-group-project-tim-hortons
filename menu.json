@@ -1,0 +1,282 @@
+[
+  {
+    "id": 101,
+    "name": "Brewed Coffee",
+    "category": "Beverage_Coffee_Urn",
+    "station": "coffee",
+    "frequency": 100,
+    "sizes": [
+      { "size": "Small", "price": 1.62 },
+      { "size": "Medium", "price": 1.92 },
+      { "size": "Large", "price": 2.16 },
+      { "size": "Extra Large", "price": 2.45 }
+    ]
+  },
+  {
+    "id": 102,
+    "name": "Dark Roast Coffee",
+    "category": "Beverage_Coffee_Urn",
+    "station": "coffee",
+    "frequency": 40,
+    "sizes": [
+      { "size": "Small", "price": 1.62 },
+      { "size": "Medium", "price": 1.92 },
+      { "size": "Large", "price": 2.16 },
+      { "size": "Extra Large", "price": 2.45 }
+    ]
+  },
+  {
+    "id": 103,
+    "name": "Steeped Tea",
+    "category": "Beverage_Coffee_Urn",
+    "station": "coffee",
+    "frequency": 30,
+    "sizes": [
+      { "size": "Small", "price": 1.79 },
+      { "size": "Medium", "price": 1.99 },
+      { "size": "Large", "price": 2.49 },
+      { "size": "Extra Large", "price": 2.79 }
+    ]
+  },
+  {
+    "id": 104,
+    "name": "French Vanilla",
+    "category": "Beverage_Espresso_Machine",
+    "station": "espresso",
+    "frequency": 25,
+    "sizes": [
+      { "size": "Small", "price": 2.89 },
+      { "size": "Medium", "price": 3.19 },
+      { "size": "Large", "price": 3.49 },
+      { "size": "Extra Large", "price": 3.79 }
+    ]
+  },
+  {
+    "id": 105,
+    "name": "Hot Chocolate",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 20,
+    "sizes": [
+      { "size": "Small", "price": 2.49 },
+      { "size": "Medium", "price": 2.79 },
+      { "size": "Large", "price": 2.99 },
+      { "size": "Extra Large", "price": 3.29 }
+    ]
+  },
+  {
+    "id": 106,
+    "name": "Latte",
+    "category": "Beverage_Espresso_Machine",
+    "station": "espresso",
+    "frequency": 15,
+    "sizes": [
+      { "size": "Small", "price": 3.29 },
+      { "size": "Medium", "price": 3.79 },
+      { "size": "Large", "price": 4.29 }
+    ]
+  },
+  {
+    "id": 107,
+    "name": "Cappuccino",
+    "category": "Beverage_Espresso_Machine",
+    "station": "espresso",
+    "frequency": 10,
+    "sizes": [
+      { "size": "Small", "price": 3.29 },
+      { "size": "Medium", "price": 3.79 },
+      { "size": "Large", "price": 4.29 }
+    ]
+  },
+  {
+    "id": 108,
+    "name": "Original Iced Capp",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 50,
+    "sizes": [
+      { "size": "Small", "price": 3.29 },
+      { "size": "Medium", "price": 3.79 },
+      { "size": "Large", "price": 4.29 }
+    ]
+  },
+  {
+    "id": 109,
+    "name": "Iced Coffee",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 45,
+    "sizes": [
+      { "size": "Small", "price": 2.29 },
+      { "size": "Medium", "price": 2.59 },
+      { "size": "Large", "price": 2.89 }
+    ]
+  },
+  {
+    "id": 110,
+    "name": "Cold Brew",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 10,
+    "sizes": [
+      { "size": "Small", "price": 2.49 },
+      { "size": "Medium", "price": 2.99 },
+      { "size": "Large", "price": 3.49 }
+    ]
+  },
+  {
+    "id": 111,
+    "name": "Fruit Quencher (Frozen)",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 15,
+    "sizes": [
+      { "size": "Small", "price": 3.49 },
+      { "size": "Medium", "price": 3.99 },
+      { "size": "Large", "price": 4.49 }
+    ]
+  },
+  {
+    "id": 112,
+    "name": "Lemonade Quencher",
+    "category": "Beverage",
+    "station": "drinks",
+    "frequency": 15,
+    "sizes": [
+      { "size": "Small", "price": 2.29 },
+      { "size": "Medium", "price": 2.79 },
+      { "size": "Large", "price": 3.29 }
+    ]
+  },
+  {
+    "id": 201,
+    "name": "Classic Donut",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 80,
+    "description": "Honey Cruller, Boston Cream, Apple Fritter, etc.",
+    "price": 1.59
+  },
+  {
+    "id": 202,
+    "name": "Dream Donut",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 20,
+    "description": "Specialty filled rings",
+    "price": 1.99
+  },
+  {
+    "id": 203,
+    "name": "Timbits",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 60,
+    "sizes": [
+      { "size": "10 Pack", "price": 3.19 },
+      { "size": "20 Pack", "price": 5.19 },
+      { "size": "50 Pack", "price": 9.99 }
+    ]
+  },
+  {
+    "id": 204,
+    "name": "Classic Cookie",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 15,
+    "price": 1.69
+  },
+  {
+    "id": 205,
+    "name": "Dream Cookie",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 10,
+    "price": 2.49
+  },
+  {
+    "id": 206,
+    "name": "Muffin",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 30,
+    "price": 2.59
+  },
+  {
+    "id": 207,
+    "name": "Croissant",
+    "category": "Food_ReadyToGo",
+    "station": "hot_foods",
+    "frequency": 25,
+    "price": 2.49
+  },
+  {
+    "id": 301,
+    "name": "Flatbread Pizza",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 10,
+    "sizes": [
+      { "size": "Simply Cheese", "price": 6.99 },
+      { "size": "Pepperoni", "price": 7.99 },
+      { "size": "Bacon Everything", "price": 7.99 },
+      { "size": "3 Meat Hat-Trick", "price": 8.99 }
+    ]
+  },
+  {
+    "id": 302,
+    "name": "Farmer's Breakfast Wrap",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 50,
+    "price": 5.59
+  },
+  {
+    "id": 303,
+    "name": "Loaded Breakfast Box",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 15,
+    "price": 5.59
+  },
+  {
+    "id": 304,
+    "name": "Bagel B.E.L.T.",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 45,
+    "price": 5.89
+  },
+  {
+    "id": 305,
+    "name": "Turkey Bacon Club",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 20,
+    "price": 7.49
+  },
+  {
+    "id": 306,
+    "name": "Grilled Cheese Panini",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 15,
+    "price": 6.49
+  },
+  {
+    "id": 307,
+    "name": "Chili",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 10,
+    "price": 5.99
+  },
+  {
+    "id": 308,
+    "name": "Omelette Bites",
+    "category": "Food_Kitchen",
+    "station": "hot_foods",
+    "frequency": 12,
+    "price": 3.99
+  }
+]
