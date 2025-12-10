@@ -21,6 +21,8 @@ from config import (
     SIM_PARAMS,
     ORDER_SIZE_PROBS,
     ITEM_TYPE_PROBS,
+    REVENUE_PER_ORDER,
+    STAFF_COST_PER_HOUR,
 )
 from customers.customer import Customer
 from arrivals.arrival_generator import ArrivalGenerator
@@ -296,6 +298,28 @@ class Simulation:
                 print(f"  {dest}: {avg_d:.3f} hours over {stats['count']} customers")
             else:
                 print(f"  {dest}: N/A (0 customers)")
+        print()
+
+        # Financials
+        revenue = finished * REVENUE_PER_ORDER
+        staff_cost = 0.0
+        horizon = self.clock
+        # Channels
+        for ch in self.channels.values():
+            staff_cost += STAFF_COST_PER_HOUR.get(ch.name, 0.0) * ch.capacity * horizon
+        # Kitchen gate
+        staff_cost += STAFF_COST_PER_HOUR.get("kitchen_gate", 0.0) * self.kitchen_gate.capacity * horizon
+        # Kitchen prep and pack
+        rep = self.kitchen_net.report(self.clock)
+        for st in rep["prep"].values():
+            staff_cost += STAFF_COST_PER_HOUR.get(st.name, 0.0) * getattr(st, "capacity", 1) * horizon
+        staff_cost += STAFF_COST_PER_HOUR.get("pack", 0.0) * rep["pack"].capacity * horizon
+
+        profit = revenue - staff_cost
+        print("--- Financials ---")
+        print(f"  Revenue: ${revenue:,.2f}")
+        print(f"  Staff cost: ${staff_cost:,.2f}")
+        print(f"  Profit: ${profit:,.2f}")
         print()
 
         def station_report(st):
