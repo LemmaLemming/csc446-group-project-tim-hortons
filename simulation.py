@@ -17,6 +17,7 @@ from config import (
     COFFEE_REBREW_MEAN_HRS,
     COFFEE_REBREW_STD_HRS,
     SERVICE_RATES,
+    SERVER_CAPACITY,
     SIM_PARAMS,
     ORDER_SIZE_PROBS,
     ITEM_TYPE_PROBS,
@@ -50,6 +51,11 @@ class Simulation:
 
         # Metrics
         self.time_in_system = []
+        self.time_by_final = {
+            "seated": {"sum": 0.0, "count": 0},
+            "pickup": {"sum": 0.0, "count": 0},
+            "drive_thru": {"sum": 0.0, "count": 0},
+        }
         self.path_counts = {
             "entry": {"cashier": 0, "app": 0, "order_station": 0},
             "final": {"seated": 0, "pickup": 0, "drive_thru": 0},
@@ -61,13 +67,13 @@ class Simulation:
 
         # Entry/service nodes
         self.channels = {
-            "cashier": Channel("cashier", SERVICE_RATES["cashier"], self.arrival_gen),
-            "app": Channel("app", SERVICE_RATES["app"], self.arrival_gen),
-            "order_station": Channel("order_station", SERVICE_RATES["order_station"], self.arrival_gen),
+            "cashier": Channel("cashier", SERVICE_RATES["cashier"], self.arrival_gen, capacity=SERVER_CAPACITY.get("cashier", 1)),
+            "app": Channel("app", SERVICE_RATES["app"], self.arrival_gen, capacity=SERVER_CAPACITY.get("app", 1)),
+            "order_station": Channel("order_station", SERVICE_RATES["order_station"], self.arrival_gen, capacity=SERVER_CAPACITY.get("order_station", 1)),
         }
 
         # Kitchen gate before prep splitting
-        self.kitchen_gate = ServiceStation("kitchen_gate", SERVICE_RATES["kitchen_gate"])
+        self.kitchen_gate = ServiceStation("kitchen_gate", SERVICE_RATES["kitchen_gate"], capacity=SERVER_CAPACITY.get("kitchen_gate", 1))
 
         # Kitchen network module
         self.kitchen_net = KitchenNetwork(
@@ -84,6 +90,12 @@ class Simulation:
                 "uses_per_brew": COFFEE_USES_PER_BREW,
                 "brew_mean": COFFEE_REBREW_MEAN_HRS,
                 "brew_std": COFFEE_REBREW_STD_HRS,
+            },
+            pack_capacity=SERVER_CAPACITY.get("pack", 1),
+            final_capacities={
+                "seated": SERVER_CAPACITY.get("seated", FINAL_CAPS["seated"]),
+                "pickup": SERVER_CAPACITY.get("pickup", FINAL_CAPS["pickup"]),
+                "drive_thru": SERVER_CAPACITY.get("drive_thru", FINAL_CAPS["drive_thru"]),
             },
         )
 
@@ -127,31 +139,31 @@ class Simulation:
         self.clock = event_time
         ch = self.channels[channel_name]
         ch.num_departures += 1
+        ch.busy_count = max(0, ch.busy_count - 1)
 
         # Next routing
         self.enqueue_kitchen_gate(customer, event_time)
 
         # Start next in channel
-        if ch.queue:
+        while ch.queue and ch.busy_count < ch.capacity:
             next_cust, queued_t = ch.queue.pop(0)
             self.start_channel_service(channel_name, next_cust, queued_t)
-        else:
-            ch.server_busy = False
+        ch.server_busy = ch.busy_count > 0
 
     def handle_kitchen_gate_departure(self, event_time, customer):
         self.clock = event_time
         st = self.kitchen_gate
         st.num_departures += 1
+        st.busy_count = max(0, st.busy_count - 1)
 
         # Hand off to kitchen network
         self.kitchen_net.route_order(customer, event_time)
 
         # Start next waiting
-        if st.queue:
+        while st.queue and st.busy_count < st.capacity:
             next_cust, queued_t = st.queue.pop(0)
             self.start_kitchen_gate_service(next_cust, queued_t)
-        else:
-            st.server_busy = False
+        st.server_busy = st.busy_count > 0
 
     def handle_item_departure(self, event_time, station_name, customer, item_idx):
         self.clock = event_time
@@ -173,16 +185,19 @@ class Simulation:
         if lost:
             self.path_counts["lost"] += 1
             return
-        self.time_in_system.append(customer.depart_time - customer.arrival_time)
+        duration = customer.depart_time - customer.arrival_time
+        self.time_in_system.append(duration)
         if destination in self.path_counts["final"]:
             self.path_counts["final"][destination] += 1
+            self.time_by_final[destination]["sum"] += duration
+            self.time_by_final[destination]["count"] += 1
 
     # ---------------------------
     # Service starters
     # ---------------------------
     def enqueue_channel(self, channel_name, customer, now):
         ch = self.channels[channel_name]
-        if (not ch.server_busy) and (len(ch.queue) == 0):
+        if (ch.busy_count < ch.capacity) and (len(ch.queue) == 0):
             self.start_channel_service(channel_name, customer, now)
         else:
             ch.queue.append((customer, now))
@@ -190,7 +205,8 @@ class Simulation:
 
     def start_channel_service(self, channel_name, customer, queued_time):
         ch = self.channels[channel_name]
-        ch.server_busy = True
+        ch.busy_count += 1
+        ch.server_busy = ch.busy_count > 0
         wait = self.clock - queued_time
         ch.total_wait_time += wait
         service_time = random.expovariate(ch.mu)
@@ -205,7 +221,7 @@ class Simulation:
 
     def enqueue_kitchen_gate(self, customer, now):
         st = self.kitchen_gate
-        if (not st.server_busy) and (len(st.queue) == 0):
+        if (st.busy_count < st.capacity) and (len(st.queue) == 0):
             self.start_kitchen_gate_service(customer, now)
         else:
             st.queue.append((customer, now))
@@ -213,7 +229,8 @@ class Simulation:
 
     def start_kitchen_gate_service(self, customer, queued_time):
         st = self.kitchen_gate
-        st.server_busy = True
+        st.busy_count += 1
+        st.server_busy = st.busy_count > 0
         wait = self.clock - queued_time
         st.total_wait_time += wait
         service_time = random.expovariate(st.mu)
@@ -236,10 +253,8 @@ class Simulation:
         if first_t is not None:
             self.schedule_event(first_t, ARRIVAL, {})
 
-        while self.event_list and self.clock < self.sim_time_end and self.total_finished_customers() < self.max_departures:
+        while self.event_list and self.total_finished_customers() < self.max_departures:
             event_time, _, event_type, data = heapq.heappop(self.event_list)
-            if event_time > self.sim_time_end:
-                break
             self.clock = event_time
 
             if event_type == ARRIVAL:
@@ -265,14 +280,26 @@ class Simulation:
     def print_report(self):
         print("=== Simulation finished ===")
         print(f"Final time: {self.clock:.3f} hours")
-        print(f"Total finished customers: {self.total_finished_customers()}")
+        finished = self.total_finished_customers()
+        print(f"Total finished customers: {finished}")
         if self.time_in_system:
             avg_t = sum(self.time_in_system) / len(self.time_in_system)
             print(f"Average time in system: {avg_t:.3f} hours")
+        else:
+            print("Average time in system: N/A (no completions)")
+        print()
+
+        print("--- Average time in system by final destination ---")
+        for dest, stats in self.time_by_final.items():
+            if stats["count"] > 0:
+                avg_d = stats["sum"] / stats["count"]
+                print(f"  {dest}: {avg_d:.3f} hours over {stats['count']} customers")
+            else:
+                print(f"  {dest}: N/A (0 customers)")
         print()
 
         def station_report(st):
-            util = st.busy_time / max(1e-9, self.clock)
+            util = st.busy_time / max(1e-9, self.clock * st.capacity)
             print(f"  Num departures: {st.num_departures}")
             print(f"  Queue length (end): {len(st.queue)}")
             print(f"  Wait total: {st.total_wait_time:.3f} hrs")
@@ -299,7 +326,7 @@ class Simulation:
 
         print("--- Final nodes ---")
         for name, st in rep["final"].items():
-            cap = FINAL_CAPS[name]
+            cap = st.capacity
             print(f"Final: {name} (cap {cap})")
             station_report(st)
         print(f"Blocked-at-pack: {rep['pack_blocked']}")

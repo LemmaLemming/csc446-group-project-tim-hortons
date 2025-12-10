@@ -72,6 +72,18 @@ SERVICE_RATES = {
     "drive_thru": 160.0,
 }
 
+# Parallel server counts per node (1 means single-server)
+SERVER_CAPACITY = {
+    "cashier": 1,
+    "app": 1,
+    "order_station": 1,
+    "kitchen_gate": 1,
+    "pack": 1,
+    "seated": FINAL_CAPS["seated"],   # seats in parallel
+    "pickup": FINAL_CAPS["pickup"],
+    "drive_thru": FINAL_CAPS["drive_thru"],
+}
+
 # Order size and item-type probabilities per channel
 ORDER_SIZE_PROBS = {
     "cashier": {1: 0.45, 2: 0.30, 3: 0.20, 4: 0.05},

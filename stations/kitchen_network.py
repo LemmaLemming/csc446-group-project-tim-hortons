@@ -21,6 +21,8 @@ class KitchenNetwork:
         final_caps,
         final_balk_if_full,
         coffee_params,
+        pack_capacity=1,
+        final_capacities=None,
     ):
         self.channels = channels
         self.schedule_event = schedule_event
@@ -30,6 +32,7 @@ class KitchenNetwork:
         self.final_caps = final_caps
         self.final_balk_if_full = final_balk_if_full
         self.lost_customers = 0
+        self.final_capacities = final_capacities or final_caps
 
         self.prep_probs = prep_probs
 
@@ -53,13 +56,13 @@ class KitchenNetwork:
                 capacity=station_capacity.get("hot_food", 1),
             ),
         }
-        self.pack_station = PackStation("pack", service_rates["pack"])
+        self.pack_station = PackStation("pack", service_rates["pack"], capacity=pack_capacity)
 
         # Final nodes with capacity and single server
         self.final_nodes = {
-            "seated": FinalNode("seated", service_rates["seated"], capacity=final_caps["seated"]),
-            "pickup": FinalNode("pickup", service_rates["pickup"], capacity=final_caps["pickup"]),
-            "drive_thru": FinalNode("drive_thru", service_rates["drive_thru"], capacity=final_caps["drive_thru"]),
+            "seated": FinalNode("seated", service_rates["seated"], capacity=self.final_capacities.get("seated", final_caps["seated"])),
+            "pickup": FinalNode("pickup", service_rates["pickup"], capacity=self.final_capacities.get("pickup", final_caps["pickup"])),
+            "drive_thru": FinalNode("drive_thru", service_rates["drive_thru"], capacity=self.final_capacities.get("drive_thru", final_caps["drive_thru"])),
         }
 
     # ---------------------------
@@ -164,11 +167,10 @@ class KitchenNetwork:
 
     def start_next_pack(self, now):
         st = self.pack_station
-        if st.queue:
+        while st.queue and st.busy_count < st.capacity:
             next_cust, queued_t = st.queue.pop(0)
             st.start_service(next_cust, now, queued_t, self.schedule_event)
-        else:
-            st.server_busy = False
+        st.server_busy = st.busy_count > 0
 
     def try_place_pack_output(self, customer, now):
         dest = customer.destination

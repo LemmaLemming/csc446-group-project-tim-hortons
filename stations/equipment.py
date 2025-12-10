@@ -97,19 +97,18 @@ class FinalNode:
     Final destination node with capacity and single server.
     """
     def __init__(self, name, mu, capacity):
-        self.station = ServiceStation(name, mu)
+        self.station = ServiceStation(name, mu, capacity=capacity)
         self.capacity = capacity
 
     def occupancy(self):
-        in_service = 1 if self.station.server_busy else 0
-        return len(self.station.queue) + in_service
+        return len(self.station.queue) + self.station.busy_count
 
     def has_capacity(self):
         return self.occupancy() < self.capacity
 
     def enqueue(self, customer, now, schedule_event):
         st = self.station
-        if (not st.server_busy) and (len(st.queue) == 0):
+        if (st.busy_count < st.capacity) and (len(st.queue) == 0):
             self.start_service(customer, now, now, schedule_event)
         else:
             st.queue.append((customer, now))
@@ -117,7 +116,8 @@ class FinalNode:
 
     def start_service(self, customer, now, queued_time, schedule_event):
         st = self.station
-        st.server_busy = True
+        st.busy_count += 1
+        st.server_busy = st.busy_count > 0
         wait = now - queued_time
         st.total_wait_time += wait
         service_time = random.expovariate(st.mu)
@@ -133,11 +133,12 @@ class FinalNode:
     def handle_departure(self, now, schedule_event):
         st = self.station
         st.num_departures += 1
-        if st.queue:
+        st.busy_count = max(0, st.busy_count - 1)
+        if st.queue and st.busy_count < st.capacity:
             next_cust, queued_t = st.queue.pop(0)
             self.start_service(next_cust, now, queued_t, schedule_event)
         else:
-            st.server_busy = False
+            st.server_busy = st.busy_count > 0
 
 
 class PackStation(KitchenStation):
@@ -146,8 +147,10 @@ class PackStation(KitchenStation):
     start, complete, and release_blocked helpers so the KitchenNetwork can
     coordinate without managing raw queues directly.
     """
-    def __init__(self, name, mu):
+    def __init__(self, name, mu, capacity=1):
         super().__init__(name, mu)
+        self.capacity = max(1, capacity)
+        self.busy_count = 0
         self.blocked_order = None
         self.blocked_since = None
 
@@ -156,13 +159,14 @@ class PackStation(KitchenStation):
             self.queue.append((customer, now))
             self.num_waited += 1
             return
-        if (not self.server_busy) and (len(self.queue) == 0):
+        if (self.busy_count < self.capacity) and (len(self.queue) == 0):
             self.start_service(customer, now, now, schedule_event)
         else:
             self.queue.append((customer, now))
             self.num_waited += 1
 
     def start_service(self, customer, now, queued_time, schedule_event):
+        self.busy_count += 1
         self.server_busy = True
         wait = now - queued_time
         self.total_wait_time += wait
@@ -178,12 +182,12 @@ class PackStation(KitchenStation):
 
     def complete(self, now):
         self.num_departures += 1
+        self.busy_count = max(0, self.busy_count - 1)
 
     def release_blocked(self, now, schedule_event):
         self.blocked_order = None
         self.blocked_since = None
-        if self.queue:
+        while self.queue and self.busy_count < self.capacity:
             next_cust, queued_t = self.queue.pop(0)
             self.start_service(next_cust, now, queued_t, schedule_event)
-        else:
-            self.server_busy = False
+        self.server_busy = self.busy_count > 0
