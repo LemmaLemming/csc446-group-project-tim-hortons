@@ -10,6 +10,9 @@ class ServiceStation:
         self.name = name
         self.mu = mu               # Service rate
         self.server_busy = False
-        self.queue = []            # Holds Customer objects
+        self.queue = []            # Holds tuples (payload, queued_time, *extras)
         self.num_waited = 0
         self.num_departures = 0
+        self.total_wait_time = 0.0
+        self.total_service_time = 0.0
+        self.busy_time = 0.0

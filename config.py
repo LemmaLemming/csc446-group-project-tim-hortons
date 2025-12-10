@@ -1,122 +1,93 @@
 # config.py
-# --- All tunable parameters and rate logic live here ---
+# Tunable parameters for the restaurant queueing network
 
 import math
 
 # --------------------------------------------------
-# Arrival Rate Functions & Helpers
+# Arrival process (single stream)
 # --------------------------------------------------
-DAY = 24.0
+def base_arrival_rate(t):
+    """Example: modest diurnal bump; units: customers per hour."""
+    # Simple bell curve around mid-day
+    return 80 + 90 * math.exp(-((t - 12.0) / 3.0) ** 2)
 
-def bell(t, center, width):
-    """Smooth bump (approx Gaussian), max = 1 at 'center'."""
-    x = (t - center) / width
-    return math.exp(-x * x)
+ARRIVAL_RATE_FUNC = base_arrival_rate
+ARRIVAL_RATE_MAX = 180.0  # envelope for thinning
 
-def wrap_day(t):
-    return t % DAY
-
-# --- High-volume rates to total ~2200 customers over 16 hours ---
-def rate_drive_thru(t):
-    t = wrap_day(t)
-    base = 11.3
-    breakfast_peak = 143.8 * bell(t, center=8.0,  width=1.5)
-    lunch_peak     = 129.4 * bell(t, center=13.0, width=1.5)
-    return base + breakfast_peak + lunch_peak
-
-def rate_mobile_order(t):
-    t = wrap_day(t)
-    base = 8.5
-    breakfast_peak = 115.0 * bell(t, center=8.0,  width=1.5)
-    lunch_peak     = 100.7 * bell(t, center=13.0, width=1.5)
-    return base + breakfast_peak + lunch_peak
-
-def rate_cashier(t):
-    t = wrap_day(t)
-    base = 7.7
-    end_of_day_peak = 172.6 * bell(t, center=15.0, width=1.5) 
-    return base + end_of_day_peak
-
-# --------------------------------------------------
-# --- MASTER CONFIGURATION DICTIONARIES ---
-# --------------------------------------------------
-
-# 1. Arrival Config: Maps channel name to its (rate_function, rate_max)
-ARRIVAL_CONFIG = {
-    "drive_thru": (rate_drive_thru, 160.0), # Peak λ ≈ 160
-    "mobile_order": (rate_mobile_order, 125.0), # Peak λ ≈ 125
-    "cashier": (rate_cashier, 185.0), # Peak λ ≈ 185
+# Entry routing probabilities
+ENTRY_PROBS = {
+    "cashier": 0.5,
+    "app": 0.2,
+    "order_station": 0.3,
 }
 
-# 2. Service Rates (mu): Maps station name to its service rate (customers/hr)
-#    --- UPDATED TO HANDLE HIGH-VOLUME ARRIVALS ---
+# Final destination routing probabilities (from packaging)
+FINAL_ROUTING_PROBS = {
+    "seated": 0.35,
+    "pickup": 0.40,
+    "drive_thru": 0.25,
+}
+
+# Final node capacities and behavior when full
+FINAL_CAPS = {
+    "seated": 30,
+    "pickup": 15,
+    "drive_thru": 8,
+}
+FINAL_BALK_IF_FULL = False  # if True, customer is lost when destination full; else pack blocks
+
+# Preparation requirements (probability an order needs each station)
+PREP_PROBS = {
+    "coffee_urn": 1.0,         # 1.0 means always required
+    "espresso_machine": 0.5,
+    "hot_food": 0.8,
+}
+
+# Station capacities (parallel servers) and coffee batch behavior
+STATION_CAPACITY = {
+    "espresso_machine": 2,
+    "hot_food": 3,     # max concurrent hot food items
+}
+COFFEE_USES_PER_BREW = 40
+COFFEE_REBREW_MEAN_HRS = 0.07  # ~4.2 minutes
+COFFEE_REBREW_STD_HRS = 0.02   # ~1.2 minutes
+
+# Service rates (mu: jobs per hour) per node
 SERVICE_RATES = {
-    # Channels (Set μ > Peak λ)
-    "drive_thru": 170.0,  # μ (170) > λ (160)
-    "mobile_order": 130.0,  # μ (130) > λ (125)
-    "cashier": 190.0,  # μ (190) > λ (185)
-    
-    # Kitchen (μ > Peak λ_kitchen)
-    # Peak kitchen load is ~235 arrivals/hr per station
-    "drinks": 240.0,  # μ (240) > λ (235)
-    "food": 240.0,  # μ (240) > λ (235)
+    # Entry nodes
+    "cashier": 190.0,
+    "app": 200.0,           # app confirmation
+    "order_station": 170.0,
+
+    # Kitchen entry / prep / packaging
+    "kitchen_gate": 220.0,  # admission to kitchen network
+    "coffee_urn": 180.0,
+    "espresso_machine": 90.0,
+    "hot_food": 120.0,
+    "pack": 160.0,
+
+    # Final nodes
+    "seated": 60.0,         # includes bussing/turn
+    "pickup": 200.0,
+    "drive_thru": 160.0,
 }
 
-# 3. Routing Probabilities: Defines logic for customer flow
-ROUTING_PROBS = {
-    "DRINK_PROB": 0.5  # P(customer order routes to 'drinks')
+# Order size and item-type probabilities per channel
+ORDER_SIZE_PROBS = {
+    "cashier": {1: 0.45, 2: 0.30, 3: 0.20, 4: 0.05},
+    "app":     {1: 0.40, 2: 0.35, 3: 0.20, 4: 0.05},
+    "order_station": {1: 0.55, 2: 0.30, 3: 0.12, 4: 0.03},
 }
 
-# 4. Global Sim Params
+ITEM_TYPE_PROBS = {
+    "cashier": {"food": 0.55, "drink": 0.30, "espresso": 0.15},
+    "app": {"food": 0.25, "drink": 0.50, "espresso": 0.25},
+    "order_station": {"food": 0.45, "drink": 0.40, "espresso": 0.15},
+}
+
+# Global sim params
 SIM_PARAMS = {
     "RANDOM_SEED": 42,
-    "SIM_TIME_END": 16.0,  # 16-hour operating day
-    "MAX_DEPARTURES": 2500, # Set higher than total arrivals
-}
-
-# --------------------------------------------
-# Order Size Distributions (per customer)
-# --------------------------------------------
-# Probabilities for the NUMBER OF ITEMS in an order
-ORDER_SIZE_PROBS = {
-    "drive_thru": {
-        1: 0.55,
-        2: 0.30,
-        3: 0.12,
-        4: 0.03,
-    },
-    "mobile_order": {
-        1: 0.40,
-        2: 0.35,
-        3: 0.20,
-        4: 0.05,
-    },
-    "cashier": {
-        1: 0.45,
-        2: 0.30,
-        3: 0.20,
-        4: 0.05,
-    }
-}
-
-# -----------------------------------------
-# Order Type Distributions by Channel
-# -----------------------------------------
-# Probability of each *item type* each time we generate an item
-ITEM_TYPE_PROBS = {
-    "drive_thru": {
-        "food":    0.45,
-        "drink":   0.40,
-        "espresso":0.15,
-    },
-    "mobile_order": {
-        "food":     0.25,
-        "drink":    0.50,
-        "espresso": 0.25,
-    },
-    "cashier": {
-        "food":     0.55,
-        "drink":    0.30,
-        "espresso": 0.15,
-    }
+    "SIM_TIME_END": 16.0,    # hours
+    "MAX_DEPARTURES": 2500,
 }
