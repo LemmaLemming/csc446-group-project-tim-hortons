@@ -132,6 +132,7 @@ class StationLogic:
             yield self.env.process(self.kitchen.process_order(customer.order))
             # Finished
             customer.finish_time = self.env.now
+            self.stats.total_cashier_orders_fulfilled += 1
 
     def process_mobile_customer(self, customer):
         """Process for Mobile App customer."""
@@ -316,4 +317,5 @@ class StationLogic:
             yield self.env.timeout(pickup_dur)
             
             customer.finish_time = self.env.now
+            self.stats.total_dt_orders_fulfilled += 1
             self.stats.add_dt_total_time(customer.total_system_time())

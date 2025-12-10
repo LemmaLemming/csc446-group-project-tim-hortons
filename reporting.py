@@ -28,6 +28,8 @@ class StatsCollector:
         # SLA
         self.mobile_sla_violations = 0
         self.total_mobile_orders_fulfilled = 0
+        self.total_cashier_orders_fulfilled = 0
+        self.total_dt_orders_fulfilled = 0
         
         # Staff Idle tracking (manual update or sampling)
         self.cashier_idle_time = 0.0
@@ -55,6 +57,11 @@ class StatsCollector:
         print("=== Tim Hortons Simulation Report ===")
         print(f"Simulation Duration: {self.total_sim_time/60:.2f} hours")
         
+        total_processed = (self.total_mobile_orders_fulfilled +
+                           self.total_cashier_orders_fulfilled +
+                           self.total_dt_orders_fulfilled)
+        print(f"Total Customers Processed: {total_processed}")
+
         # --- Tail Latencies ---
         print("\n--- Tail Latencies ---")
         
