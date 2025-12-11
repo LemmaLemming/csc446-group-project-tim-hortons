@@ -12,29 +12,20 @@ class StationLogic:
         self.config = config
         self.menu = menu
         
-        # Resources
         self.cashier_resource = simpy.Resource(env, capacity=config.NUM_CASHIERS)
         self.dt_ordering_resource = simpy.Resource(env, capacity=config.DRIVE_THRU_NUM_ORDERING_STATIONS)
-        self.dt_pickup_resource = simpy.Resource(env, capacity=1) # Window
+        self.dt_pickup_resource = simpy.Resource(env, capacity=1)
         
-        # Mobile Slot State
-        # slots[slot_index] = count
         self.mobile_slots = {} 
         
-        # Drive Thru Queue
-        
-        # Menu frequency processing
         self.menu_items = menu
         self.item_weights = [m.frequency for m in menu]
         self.total_weight = sum(self.item_weights)
 
     def generate_random_order(self, is_mobile=False, is_drive_thru=False):
-        """Generates a random order based on menu frequencies and size decay."""
         from models import Order
         
-        # Determine number of items (1-5), exponential drop off
-        size_probs = [1.0 / (2**i) for i in range(5)] # 1, 0.5, 0.25...
-        # Normalize to sum to 1
+        size_probs = [1.0 / (2**i) for i in range(5)]
         total_p = sum(size_probs)
         size_probs = [p/total_p for p in size_probs]
         
@@ -45,15 +36,19 @@ class StationLogic:
             chosen_menu = random.choices(self.menu_items, weights=self.item_weights, k=1)[0]
             
             size = None
+            price = 0.0
             if chosen_menu.sizes:
-                size = random.choice(chosen_menu.sizes)["size"]
+                picked_size_dict = random.choice(chosen_menu.sizes)
+                size = picked_size_dict["size"]
+                price = picked_size_dict.get("price", 0.0)
+            elif chosen_menu.price is not None:
+                price = chosen_menu.price
                 
-            items.append(OrderItem(menu_item=chosen_menu, size=size))
+            items.append(OrderItem(menu_item=chosen_menu, size=size, price=price))
             
         return Order(items=items, is_mobile=is_mobile, is_drive_thru=is_drive_thru)
 
     def get_service_duration(self, mean, std, num_items, multiplier):
-        """Calculates service time with lognormal distribution and item multiplier."""
         extra_items = max(0, num_items - 1)
         
         adj_mean = mean * (1 + multiplier * extra_items)
@@ -67,10 +62,7 @@ class StationLogic:
         
         return random.lognormvariate(mu_prime, sigma_prime)
 
-    # --- PROCESSES ---
-
     def process_cashier_customer(self, customer):
-        """Process for a Dine-in/Take-out customer at Cashier."""
         self.stats.total_cashier_arrivals += 1
         
         start_wait = self.env.now
@@ -82,7 +74,6 @@ class StationLogic:
             result = yield req | self.env.timeout(self.config.CASHIER_MAX_WAIT_TIME_MINUTES)
             
             if req in result:
-                # Got server
                 customer.end_wait_time = self.env.now
                 self.stats.add_cashier_wait(customer.wait_duration())
                 
@@ -102,35 +93,19 @@ class StationLogic:
                 customer.reneged = True
             
         if not customer.reneged:
-            # We record attempts for Counter in Kitchen logic, but we can't easily record blocking count here
-            # because blocking happens *inside* kitchen.process_order (Limbo state).
-            # But wait, `process_order` is a generator.
-            # If the order is blocked in limbo, `yield kitchen_process` will just wait longer.
-            # The Kitchen code handles the stats update for blocking?
-            # NO, Kitchen code doesn't have reference to StatsCollector explicitly in `process_order`.
-            # I need to pass StatsCollector to Kitchen!
-
-            # The Kitchen was initialized with `stats` in Main? No, check main.py or Kitchen init.
-            # `StationLogic` has `stats`. `Kitchen` does not.
-            # I should fix this. Kitchen needs stats to record "Blocked".
-
-            # For now, let's assume `kitchen.process_order` works.
-            # I will need to update Kitchen init to take stats.
-
             yield self.env.process(self.kitchen.process_order(customer.order))
 
-            # Record blocking stats from Order object?
             if getattr(customer.order, 'blocked_by_counter', False):
                  self.stats.record_counter_attempt(True)
             else:
-                 # Only if it was subject to counter logic (Cashier/Mobile).
                  self.stats.record_counter_attempt(False)
+
+            self.stats.track_revenue(customer.order)
 
             customer.finish_time = self.env.now
             self.stats.total_cashier_orders_fulfilled += 1
 
     def process_mobile_customer(self, customer):
-        """Process for Mobile App customer."""
         self.stats.total_mobile_arrivals += 1
         
         current_time = self.env.now
@@ -147,7 +122,6 @@ class StationLogic:
 
         picked_slot = random.choice(possible_slots)
         booked_slot = -1
-        attempts = 0
         max_attempts = self.config.MOBILE_ORDER_MAX_SLOT_ATTEMPTS
         
         for i in range(max_attempts + 1):
@@ -180,11 +154,12 @@ class StationLogic:
         
         yield self.env.process(self.kitchen.process_order(customer.order))
         
-        # Stats for blocking
         if getattr(customer.order, 'blocked_by_counter', False):
              self.stats.record_counter_attempt(True)
         else:
              self.stats.record_counter_attempt(False)
+
+        self.stats.track_revenue(customer.order)
 
         ready_time = self.env.now
         customer.finish_time = ready_time
@@ -195,7 +170,6 @@ class StationLogic:
             self.stats.mobile_sla_violations += 1
 
     def process_drive_thru_customer(self, customer):
-        """Process for Drive-Thru customer."""
         self.stats.total_dt_arrivals += 1
         
         current_line_len = len(self.dt_ordering_resource.queue) + len(self.dt_ordering_resource.users)
@@ -246,6 +220,8 @@ class StationLogic:
             )
             yield self.env.timeout(pickup_dur)
             
+            self.stats.track_revenue(customer.order)
+
             customer.finish_time = self.env.now
             self.stats.total_dt_orders_fulfilled += 1
             self.stats.add_dt_total_time(customer.total_system_time())
