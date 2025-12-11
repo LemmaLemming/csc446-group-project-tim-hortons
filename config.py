@@ -104,3 +104,6 @@ PICKUP_DIST_SIGMA = 1.0
 
 # SLA
 SLA_DRIVE_THRU_WAIT_THRESHOLD = 5.0
+
+# --- Priority Queueing ---
+ENABLE_PRIORITY = True
