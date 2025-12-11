@@ -16,7 +16,7 @@ class MenuItem:
 class OrderItem:
     menu_item: MenuItem
     size: Optional[str] = None
-    # We can add price here if needed, but not critical for flow simulation
+    price: float = 0.0
 
 @dataclass
 class Order:
@@ -26,24 +26,30 @@ class Order:
     is_priority: bool = False
     order_time: float = 0.0
     
-    # For Mobile
-    pickup_slot_start: Optional[float] = None # Minutes from sim start
+    pickup_slot_start: Optional[float] = None
+
+    on_counter: bool = False
+    blocked_by_counter: bool = False
+    limbo_event: object = None
+
+    @property
+    def total_price(self) -> float:
+        return sum(item.price for item in self.items)
 
 @dataclass
 class Customer:
     id: int
     arrival_time: float
-    channel: str # "cashier", "mobile", "drive_thru"
-    order: Order
+    channel: str
+    order: Optional[Order] = None
     
-    # State tracking
     start_wait_time: float = 0.0
-    end_wait_time: float = 0.0 # When they finished ordering/queued for pickup
-    finish_time: float = 0.0   # When they got their food
+    end_wait_time: float = 0.0
+    finish_time: float = 0.0
     
     balked: bool = False
     reneged: bool = False
-    sla_violated: bool = False # For mobile
+    sla_violated: bool = False
     
     def wait_duration(self):
         return self.end_wait_time - self.start_wait_time

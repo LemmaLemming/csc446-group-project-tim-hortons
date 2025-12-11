@@ -12,83 +12,88 @@ def get_normal_duration(mean, std):
 
 class BaseStation:
     """Base station logic using PriorityResource."""
-    def __init__(self, env, name, params):
+    def __init__(self, env, name, params, num_employees):
         self.env = env
         self.name = name
         self.params = params
-        # PriorityResource: smaller integer = higher priority
-        self.resource = simpy.PriorityResource(env, capacity=params.get("capacity", 1))
+        self.num_employees = num_employees
+
+        capacity = params.get("capacity", num_employees)
+        self.resource = simpy.PriorityResource(env, capacity=capacity)
+
+        base_mean = params["mean"]
+        self.adj_mean = base_mean * (config.EFFICIENCY_BASE ** num_employees)
+        self.adj_std = params["std"] * (config.EFFICIENCY_BASE ** num_employees)
 
     def process_item(self, item, is_priority):
         """Standard processing with normal delay."""
         priority = 0 if is_priority else 1
         with self.resource.request(priority=priority) as req:
             yield req
-            duration = get_normal_duration(self.params["mean"], self.params["std"])
+            duration = get_normal_duration(self.adj_mean, self.adj_std)
             yield self.env.timeout(duration)
 
 class CoffeeStation(BaseStation):
     """
     Coffee Station with 2 Urns.
-    - Capacity: 2 Urns (resources).
-    - Logic: Use urn, decrement cup count.
-    - If empty, refill (block). Refill takes fixed time.
+    Capacity = 2 Urns.
+    Efficiency applies to pouring time.
     """
-    def __init__(self, env, name, params):
-        self.env = env
-        self.name = name
-        self.params = params
-        # Resource represents the Urns themselves. Capacity = number of urns (2).
-        self.resource = simpy.PriorityResource(env, capacity=params.get("capacity", 2))
-        self.urns = [CoffeeUrn(env, i) for i in range(params.get("capacity", 2))]
+    def __init__(self, env, name, params, num_employees):
+        super().__init__(env, name, params, num_employees)
+        self.urns = [CoffeeUrn(env, i, self.adj_mean, self.adj_std) for i in range(params.get("capacity", 2))]
 
     def process_item(self, item, is_priority):
         priority = 0 if is_priority else 1
-        reqs = [urn.resource.request(priority=priority) for urn in self.urns]
-        req_map = {req: urn for req, urn in zip(reqs, self.urns)}
 
-        try:
-            results = yield simpy.AnyOf(self.env, reqs)
-            winner_req = list(results.keys())[0]
-            winner_urn = req_map[winner_req]
+        with self.resource.request(priority=priority) as staff_req:
+            yield staff_req
 
-            for req in reqs:
-                if req != winner_req:
-                    req.cancel()
+            reqs = [urn.resource.request(priority=priority) for urn in self.urns]
+            req_map = {req: urn for req, urn in zip(reqs, self.urns)}
 
-            yield self.env.process(winner_urn.serve_cup(winner_req, self.params))
+            try:
+                results = yield simpy.AnyOf(self.env, reqs)
+                winner_req = list(results.keys())[0]
+                winner_urn = req_map[winner_req]
 
-        finally:
-            if 'winner_req' in locals():
-                 winner_urn.resource.release(winner_req)
+                for req in reqs:
+                    if req != winner_req:
+                        req.cancel()
+
+                yield self.env.process(winner_urn.serve_cup(winner_req))
+
+            finally:
+                if 'winner_req' in locals():
+                     winner_urn.resource.release(winner_req)
 
 class CoffeeUrn:
-    def __init__(self, env, id):
+    def __init__(self, env, id, mean, std):
         self.env = env
         self.id = id
+        self.mean = mean
+        self.std = std
         self.resource = simpy.PriorityResource(env, capacity=1)
         self.cups_left = config.COFFEE_URN_CAPACITY
 
-    def serve_cup(self, req, params):
+    def serve_cup(self, req):
         if self.cups_left <= 0:
             yield self.env.timeout(config.COFFEE_URN_REFILL_TIME)
             self.cups_left = config.COFFEE_URN_CAPACITY
 
-        duration = get_normal_duration(params["mean"], params["std"])
+        duration = get_normal_duration(self.mean, self.std)
         yield self.env.timeout(duration)
         self.cups_left -= 1
-
 
 class EspressoStation(BaseStation):
     """
     Espresso Station.
-    - Capacity: 1.
-    - Failure Logic: Weibull failure.
-    - Repair: 2 min.
-    - Interruption: Resets order.
+    Capacity: Machine Limit (1).
+    Efficiency: Applies to service time.
     """
-    def __init__(self, env, name, params):
-        super().__init__(env, name, params)
+    def __init__(self, env, name, params, num_employees):
+        super().__init__(env, name, params, num_employees)
+
         self.env.process(self.failure_loop())
         self.broken = False
         self.current_process = None
@@ -123,29 +128,22 @@ class EspressoStation(BaseStation):
                         yield self.env.timeout(0.1)
                         continue
 
-                    self.current_process = self.env.process(self._make_espresso(self.params))
+                    self.current_process = self.env.process(self._make_espresso(self.adj_mean, self.adj_std))
                     success = yield self.current_process
                     if success:
-                        break # Success
-                    # else continue loop (restart)
+                        break
             except simpy.Interrupt:
                 pass
 
-    def _make_espresso(self, params):
+    def _make_espresso(self, mean, std):
         try:
-            duration = get_normal_duration(params["mean"], params["std"])
+            duration = get_normal_duration(mean, std)
             yield self.env.timeout(duration)
             return True
         except simpy.Interrupt:
-            # Interrupted (broken). Return False to signal restart.
             return False
 
 class Counter:
-    """
-    Counter Queue Logic.
-    - Capacity: N orders.
-    - Limbo: Infinite.
-    """
     def __init__(self, env, capacity):
         self.env = env
         self.capacity = capacity
@@ -180,14 +178,18 @@ class Kitchen:
         self.env = env
         self.stations = {}
 
+        emp_counts = config.STATION_EMPLOYEES
+
         for name, params in stations_config.items():
             st_type = params.get("type", "simple")
+            num_emp = emp_counts.get(name, 1)
+
             if st_type == "coffee":
-                self.stations[name] = CoffeeStation(env, name, params)
+                self.stations[name] = CoffeeStation(env, name, params, num_emp)
             elif st_type == "espresso":
-                self.stations[name] = EspressoStation(env, name, params)
+                self.stations[name] = EspressoStation(env, name, params, num_emp)
             else:
-                self.stations[name] = BaseStation(env, name, params)
+                self.stations[name] = BaseStation(env, name, params, num_emp)
 
         self.counter = Counter(env, config.COUNTER_CAPACITY)
 
