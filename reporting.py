@@ -40,6 +40,10 @@ class StatsCollector:
         self.total_dt_ordering_service_time = 0.0
         self.num_dt_ordering_stations = 0
 
+        # Counter Blocking
+        self.total_counter_attempts = 0
+        self.counter_blocked_count = 0
+
     def add_dt_wait(self, time):
         self.dt_wait_times.append(time)
 
@@ -52,6 +56,11 @@ class StatsCollector:
     def sample_queues(self, dt_len, cashier_len):
         self.dt_queue_lengths.append(dt_len)
         self.cashier_queue_lengths.append(cashier_len)
+
+    def record_counter_attempt(self, blocked: bool):
+        self.total_counter_attempts += 1
+        if blocked:
+            self.counter_blocked_count += 1
 
     def print_report(self, config):
         print("=== Tim Hortons Simulation Report ===")
@@ -112,17 +121,16 @@ class StatsCollector:
             print(f"Drive-Thru Balking Rate (Queue Full): {(self.dt_balks/self.total_dt_arrivals)*100:.2f}%")
             
         if self.total_cashier_arrivals > 0:
-            # "balking rate of dine in customers waiting for cashier" (Wait, user asked for balking AND reneging)
-            # Reneging is usually leaving AFTER joining queue. Balking is refusing to join.
-            # Code implements reneging (max wait time). 
-            # If line limit existed for cashier, we'd have balks. But user only specified max wait time -> reneging.
-            # I'll report Reneging as "Balking/Reneging" or separate if I had explicit balking.
             print(f"Cashier Reneging Rate (Wait too long): {(self.cashier_renages/self.total_cashier_arrivals)*100:.2f}%")
+
+        if self.total_counter_attempts > 0:
+            blocked_rate = (self.counter_blocked_count / self.total_counter_attempts) * 100
+            print(f"Orders Blocked by Full Counter: {blocked_rate:.2f}% ({self.counter_blocked_count}/{self.total_counter_attempts})")
+        else:
+            print("Orders Blocked by Full Counter: N/A")
 
         # --- Resource Efficiency ---
         print("\n--- Resource Efficiency ---")
-        # Staff Idle Rate per Role
-        
         # Cashier Idle Rate
         total_cashier_capacity = self.num_cashiers * self.total_sim_time
         if total_cashier_capacity > 0:
