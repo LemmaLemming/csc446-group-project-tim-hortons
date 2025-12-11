@@ -150,7 +150,8 @@ class StationLogic:
         wait_time = kitchen_send_time - current_time
         yield self.env.timeout(wait_time)
         
-        customer.order.is_priority = True
+        if self.config.ENABLE_PRIORITY:
+            customer.order.is_priority = True
         
         yield self.env.process(self.kitchen.process_order(customer.order))
         
@@ -192,7 +193,7 @@ class StationLogic:
             
             customer.order = self.generate_random_order(is_drive_thru=True)
             
-            if is_high_load:
+            if is_high_load and self.config.ENABLE_PRIORITY:
                 customer.order.is_priority = True
                 
             duration = self.get_service_duration(

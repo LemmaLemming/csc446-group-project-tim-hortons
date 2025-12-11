@@ -169,3 +169,76 @@ class StatsCollector:
              print(f"Drive-Thru Ordering Staff Idle Rate: {dt_idle_rate*100:.2f}%")
         else:
              print("Drive-Thru Ordering Staff Idle Rate: N/A")
+
+    def get_stats_dict(self):
+        """Returns key statistics as a dictionary for aggregation."""
+        import config
+
+        # Financials
+        num_kitchen_staff = sum(config.STATION_EMPLOYEES.values())
+        total_employees = self.num_cashiers + self.num_dt_ordering_stations + num_kitchen_staff
+        hours_worked = self.total_sim_time / 60.0
+        total_wages = total_employees * hours_worked * config.HOURLY_WAGE
+        net_profit = self.gross_profit - total_wages
+
+        # Wait Times
+        avg_dt_wait = np.mean(self.dt_wait_times) if self.dt_wait_times else 0.0
+        med_dt_wait = np.median(self.dt_wait_times) if self.dt_wait_times else 0.0
+        p90_dt_wait = np.percentile(self.dt_wait_times, 90) if self.dt_wait_times else 0.0
+
+        avg_cashier_wait = np.mean(self.cashier_wait_times) if self.cashier_wait_times else 0.0
+        med_cashier_wait = np.median(self.cashier_wait_times) if self.cashier_wait_times else 0.0
+        p95_cashier_wait = np.percentile(self.cashier_wait_times, 95) if self.cashier_wait_times else 0.0
+
+        # Queues
+        avg_dt_q = np.mean(self.dt_queue_lengths) if self.dt_queue_lengths else 0.0
+        avg_cashier_q = np.mean(self.cashier_queue_lengths) if self.cashier_queue_lengths else 0.0
+
+        # Total Times
+        p90_dt_total = np.percentile(self.dt_total_times, 90) if self.dt_total_times else 0.0
+
+        # Throughput
+        total_processed = (self.total_mobile_orders_fulfilled +
+                           self.total_cashier_orders_fulfilled +
+                           self.total_dt_orders_fulfilled)
+
+        # Violations/Balks
+        mobile_sla_rate = (self.mobile_sla_violations / self.total_mobile_orders_fulfilled) * 100 if self.total_mobile_orders_fulfilled > 0 else 0.0
+        mobile_balk_rate = (self.mobile_balks / self.total_mobile_arrivals) * 100 if self.total_mobile_arrivals > 0 else 0.0
+        dt_balk_rate = (self.dt_balks / self.total_dt_arrivals) * 100 if self.total_dt_arrivals > 0 else 0.0
+        cashier_renege_rate = (self.cashier_renages / self.total_cashier_arrivals) * 100 if self.total_cashier_arrivals > 0 else 0.0
+        counter_blocked_rate = (self.counter_blocked_count / self.total_counter_attempts) * 100 if self.total_counter_attempts > 0 else 0.0
+
+        # Idle Rates
+        total_cashier_capacity = self.num_cashiers * self.total_sim_time
+        cashier_idle_rate = 0.0
+        if total_cashier_capacity > 0:
+             cashier_utilization = self.total_cashier_service_time / total_cashier_capacity
+             cashier_idle_rate = (1.0 - cashier_utilization) * 100
+
+        total_dt_capacity = self.num_dt_ordering_stations * self.total_sim_time
+        dt_idle_rate = 0.0
+        if total_dt_capacity > 0:
+             dt_utilization = self.total_dt_ordering_service_time / total_dt_capacity
+             dt_idle_rate = (1.0 - dt_utilization) * 100
+
+        return {
+            "net_profit": net_profit,
+            "avg_dt_wait": avg_dt_wait,
+            "med_dt_wait": med_dt_wait,
+            "p90_dt_wait": p90_dt_wait,
+            "avg_cashier_wait": avg_cashier_wait,
+            "med_cashier_wait": med_cashier_wait,
+            "p95_cashier_wait": p95_cashier_wait,
+            "avg_dt_queue": avg_dt_q,
+            "avg_cashier_queue": avg_cashier_q,
+            "p90_dt_total_time": p90_dt_total,
+            "total_throughput": total_processed,
+            "mobile_sla_violation_rate": mobile_sla_rate,
+            "mobile_balk_rate": mobile_balk_rate,
+            "dt_balk_rate": dt_balk_rate,
+            "cashier_renege_rate": cashier_renege_rate,
+            "counter_blocked_rate": counter_blocked_rate,
+            "cashier_idle_rate": cashier_idle_rate,
+            "dt_idle_rate": dt_idle_rate
+        }
